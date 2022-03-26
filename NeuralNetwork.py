@@ -1,4 +1,4 @@
-from Layers import *
+from DenseLayers import *
 
 
 class NeuralNetwork:
@@ -47,25 +47,25 @@ class NeuralNetwork:
 
         # Computing hidden layers errors
         for i in range(self.depth-2, 0, -1) :
-            curr_layer = self.layers[i]
-            next_layer = self.layers[i + 1]
-            curr_layer.compute_errors(next_layer)
+            self.layers[i].compute_errors()
 
 
     def update_weights(self, alfa, beta, gamma):
         for i in range(self.depth-1, 0, -1) :
-            curr_layer = self.layers[i]
-            prev_layer = self.layers[i-1]
-            curr_layer.update_weights(alfa, beta, gamma, prev_layer)
+            self.layers[i].update_weights(alfa, beta, gamma)
 
 
-    def add_input_layer(self, inputsize):
-        self.layers.append(InputLayer(inputsize))
+    def add_dense_input_layer(self, inputsize):
+        self.layers.append(DenseInputLayer(inputsize))
         self.depth += 1
 
 
     def add_dense_layer(self, activation, size, weights=None, randrange=None, bias=.0):
         inputsize = self.layers[self.depth - 1].size
         dense_layer = DenseLayer(inputsize, activation, size, weights, randrange, bias)
+
+        self.layers[self.depth - 1].next_layer = dense_layer
+        dense_layer.prev_layer = self.layers[self.depth - 1]
+
         self.layers.append(dense_layer)
         self.depth += 1

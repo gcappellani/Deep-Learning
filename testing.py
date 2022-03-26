@@ -2,6 +2,8 @@ import numpy as np
 import tensorflow as tf
 
 import tensorflow_datasets as tfds
+
+from DenseLayers import *
 from TensorsOperations import *
 
 
@@ -9,10 +11,18 @@ if __name__ == '__main__':
 
     #(train_images, train_labels), (test_images, test_labels) = tfds.cifar10.load_data()
 
-    in_shape = [3,3]
+    in_shape = [3,3,3]
     kernel_shape = [2,2,2]
 
-    tensor = np.arange(9).reshape(in_shape)
+    kernel = np.zeros(kernel_shape)
+    tensor = np.arange(27).reshape(in_shape)
+
+    out_tensor, mask = pooling(tensor, kernel, "min")
+
+    print(tensor)
+    print(out_tensor)
+    print(mask)
+    stop
 
     new_in_shape = [1 for _ in range(len(kernel_shape) - len(in_shape))]
     for s in in_shape : new_in_shape.append(s)
