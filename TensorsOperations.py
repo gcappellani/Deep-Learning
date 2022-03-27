@@ -7,8 +7,6 @@ def dilate(tensor, padding, value=0):
         for j in range(padding) :
             tensor = np.insert(tensor, range(1, tensor.shape[i], j+1), value, axis=i)
 
-    return tensor
-
 
 def get_out_shape(input_shape, kernel_shape, stride):
     out_shape = []
@@ -64,7 +62,9 @@ def full_convolution(in_tensor, kernel, stride=1, bias=0):
     return out_tensor
 
 
-def operate_and_get_mask(i, mask, temp, in_tensor, kernel, out_tensor, stride, operation):
+
+
+def operate_pooling(i, tracking_list, temp, in_tensor, kernel, out_tensor, stride, operation):
     for j in range(0, in_tensor.shape[i]-kernel.shape[i]+1, stride):
         if i == len(out_tensor.shape)-1 :
             temp[-1] = j
@@ -72,33 +72,41 @@ def operate_and_get_mask(i, mask, temp, in_tensor, kernel, out_tensor, stride, o
             in_index = tuple(slice(a, b) for a, b in zip(temp, temp + kernel.shape))
 
             target = operation(in_tensor[in_index])
+            if tracking_list is not None:
+                relative_index = tuple(a[0] for a in np.where(in_tensor[in_index] == target))
+                absolute_index = tuple(a + b for a,b in zip(temp, relative_index))
+                tracking_list.append((absolute_index, out_index))
+
             out_tensor[out_index] = target
-            if mask is not None :
-                target_index = np.where(in_tensor[in_index] == target)
-                mask[tuple(a + b for a,b in zip(temp, target_index))] = 1
 
         elif i < len(out_tensor.shape)-1 :
-            operate_and_get_mask(i + 1, mask, temp, in_tensor, kernel, out_tensor, stride, operation)
+            operate_pooling(i + 1, tracking_list, temp, in_tensor, kernel, out_tensor, stride, operation)
             temp[i] += stride
     temp[i] = 0
 
 
-def pooling(in_tensor, kernel, operation, stride=1):
-    mask = np.zeros(in_tensor.shape)
-    if operation == "max" :
-        operation = np.max
-    elif operation == "min" :
-        operation = np.min
-    elif operation == "avg" :
-        operation = np.average
-        mask = None
+def min_max_pooling(in_tensor, kernel, operation, stride=1):
+
+    out_shape = get_out_shape(in_tensor.shape, kernel.shape, stride)
+    out_tensor = np.zeros(out_shape)
+    tracking_list = []
+
+    temp = np.array([0] * len(out_tensor.shape))
+    operate_pooling(0, tracking_list, temp, in_tensor, kernel, out_tensor, stride, operation)
+
+    return out_tensor, tracking_list
+
+
+def avg_pooling(in_tensor, kernel, operation, stride=1):
 
     out_shape = get_out_shape(in_tensor.shape, kernel.shape, stride)
     out_tensor = np.zeros(out_shape)
 
     temp = np.array([0] * len(out_tensor.shape))
-    operate_and_get_mask(0, mask, temp, in_tensor, kernel, out_tensor, stride, operation)
+    operate_pooling(0, None, temp, in_tensor, kernel, out_tensor, stride, operation)
 
-    return out_tensor, mask
+    return out_tensor
+
+
 
 

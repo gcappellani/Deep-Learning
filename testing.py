@@ -17,11 +17,10 @@ if __name__ == '__main__':
     kernel = np.zeros(kernel_shape)
     tensor = np.arange(27).reshape(in_shape)
 
-    out_tensor, mask = pooling(tensor, kernel, "min")
+    output, tracking_list = min_max_pooling(tensor, kernel, np.max, 1)
 
-    print(tensor)
-    print(out_tensor)
-    print(mask)
+    print(np.prod(kernel.shape))
+
     stop
 
     new_in_shape = [1 for _ in range(len(kernel_shape) - len(in_shape))]
