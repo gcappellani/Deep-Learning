@@ -1,4 +1,6 @@
 from DenseLayers import *
+from ConvolutionalLayers import *
+from LSTMLayers import *
 
 
 class NeuralNetwork:
@@ -13,8 +15,11 @@ class NeuralNetwork:
     # set beta != 0 and gamma != 1
     def train(self, X, Y, epochs, alfa=.1, beta=.3, gamma=.7):
         for epoch in range(epochs) :
+            i = 1
             for inputs, outputs in zip(X, Y) :
                 self.train_on_item(inputs, outputs, alfa, beta, gamma)
+                print("trained item " + str(i))
+                i += 1
             print("epoch " + str(epoch+1) + " done")
 
 
@@ -33,9 +38,9 @@ class NeuralNetwork:
 
 
     def feedforward(self, inputs):
-        outputs = inputs
-        for i in range(len(self.layers)) :
-            outputs = self.layers[i].compute_output(outputs)
+        outputs = self.layers[0].compute_output(inputs)
+        for i in range(1, len(self.layers)) :
+            outputs = self.layers[i].compute_output()
 
         return outputs
 
@@ -55,17 +60,46 @@ class NeuralNetwork:
             self.layers[i].update_weights(alfa, beta, gamma)
 
 
-    def add_dense_input_layer(self, inputsize):
-        self.layers.append(DenseInputLayer(inputsize))
+    def add_layer(self, layer):
+        self.layers.append(layer)
         self.depth += 1
 
 
-    def add_dense_layer(self, activation, size, weights=None, randrange=None, bias=.0):
-        inputsize = self.layers[self.depth - 1].size
-        dense_layer = DenseLayer(inputsize, activation, size, weights, randrange, bias)
+    def add_flatten_layer(self):
+        prev_layer = self.layers[self.depth - 1]
+        input_shape = prev_layer.last_outputs.shape
 
-        self.layers[self.depth - 1].next_layer = dense_layer
-        dense_layer.prev_layer = self.layers[self.depth - 1]
+        flatten_layer = FlattenLayer(input_shape)
 
-        self.layers.append(dense_layer)
-        self.depth += 1
+        prev_layer.next_layer = flatten_layer
+        flatten_layer.prev_layer = prev_layer
+
+        self.add_layer(flatten_layer)
+
+
+    def add_dense_layer(self, dense_layer):
+        prev_layer = self.layers[self.depth - 1]
+        prev_layer.next_layers.append(dense_layer)
+        dense_layer.prev_layer = prev_layer
+        self.add_layer(dense_layer)
+
+
+    def add_convolutional_layer(self, convolutional_layer):
+        prev_layer = self.layers[self.depth - 1]
+        prev_layer.next_layer = convolutional_layer
+        convolutional_layer.prev_layer = prev_layer
+        self.add_layer(convolutional_layer)
+
+
+    def add_lstm_layer(self, lstm_layer):
+        prev_layer = self.layers[self.depth - 1]
+
+        if isinstance(prev_layer, LSTMInputLayer) :
+            for unit, layer in zip(lstm_layer.units, prev_layer.layers) :
+                unit.input_layer.prev_layer = layer
+        elif isinstance(prev_layer, LSTMLayer) :
+            for prev_unit, curr_unit in zip(prev_layer.units, lstm_layer.units):
+                curr_unit.input_layer.prev_layer = prev_unit.hidden_layer
+
+        prev_layer.next_layer = lstm_layer
+        self.add_layer(lstm_layer)

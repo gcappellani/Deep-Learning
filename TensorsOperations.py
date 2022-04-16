@@ -1,11 +1,17 @@
 import numpy as np
-from Exceptions import ShapeException
+
+class ShapeException(Exception):
+    def __init__(self, in_shape, kernel_shape, stride):
+        super().__init__("Resulting output shape is not valid for in_shape=" + str(in_shape) + \
+                         " kernel_shape=" + str(kernel_shape) + " stride=" + str(stride))
 
 
 def dilate(tensor, padding, value=0):
     for i in range(len(tensor.shape)) :
         for j in range(padding) :
             tensor = np.insert(tensor, range(1, tensor.shape[i], j+1), value, axis=i)
+
+    return tensor
 
 
 def get_out_shape(input_shape, kernel_shape, stride):
@@ -53,15 +59,13 @@ def full_convolution(in_tensor, kernel, stride=1, bias=0):
     pad_width = [(s-1, s-1) for s in kernel.shape]
     in_tensor = np.pad(in_tensor, pad_width, 'constant', constant_values=0)
 
-    out_shape = in_tensor.shape
+    out_shape = get_out_shape(in_tensor.shape, kernel.shape, stride)
     out_tensor = np.zeros(out_shape)
 
     temp = np.array([0] * len(out_tensor.shape))
     operate(0, temp, in_tensor, kernel, out_tensor, stride, bias)
 
     return out_tensor
-
-
 
 
 def operate_pooling(i, tracking_list, temp, in_tensor, kernel, out_tensor, stride, operation):
@@ -106,7 +110,3 @@ def avg_pooling(in_tensor, kernel, operation, stride=1):
     operate_pooling(0, None, temp, in_tensor, kernel, out_tensor, stride, operation)
 
     return out_tensor
-
-
-
-

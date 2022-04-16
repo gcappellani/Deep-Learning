@@ -1,12 +1,15 @@
 import numpy as np
 import TensorsOperations as to
-from PoolingLayers import PoolingLayer
+from DenseLayers import *
+from PoolingLayers import *
 
 
 class ConvolutionalInputLayer:
-    def __init__(self, inputsize, next_layer=None):
+    def __init__(self, in_shape, next_layer=None):
         self.next_layer = next_layer
-        self.size = inputsize
+        self.in_shape = in_shape
+        self.out_shape = in_shape
+        self.last_outputs = np.array([np.zeros(in_shape)])
 
     def compute_output(self, inputs):
         inputs = to.add_axis(inputs, 1)
@@ -23,13 +26,13 @@ class ConvolutionalLayer():
         self.kernel_shape = kernel_shape
         self.stride = stride
         self.nkernel = nkernel
-        self.activation = activation
+        self.activation = np.vectorize(activation)
         self.bias = bias
         self.randrange = randrange if randrange is not None else (-.5,.5)
         self.padding = padding
 
         self.out_shape = to.get_out_shape(self.in_shape, kernel_shape, stride)
-        self.kernels = np.array([np.random.uniform(randrange[0], randrange[1], kernel_shape) for _ in nkernel])
+        self.kernels = np.array([np.random.uniform(self.randrange[0], self.randrange[1], kernel_shape) for _ in range(nkernel)])
         self.ewma = np.zeros(self.kernels.shape)
 
         self.noutputs = self.prev_layer.last_outputs.shape[0] * self.nkernel
@@ -38,7 +41,8 @@ class ConvolutionalLayer():
         self.act_derivatives = np.zeros(self.errors.shape)
 
 
-    def compute_output(self, tensors):
+    def compute_output(self, tensors=None):
+        tensors = self.prev_layer.last_outputs if tensors is None else tensors
         for i in range(len(tensors)) :
             if self.padding is not None :
                 tensors[i] = np.pad(tensors[i], self.padding, 'constant', constant_values=0)
@@ -51,6 +55,9 @@ class ConvolutionalLayer():
 
 
     def compute_errors(self):
+        if isinstance(self.next_layer, FlattenLayer):
+            self.errors = self.next_layer.errors
+            return
         if isinstance(self.next_layer, PoolingLayer):
             self.next_layer.compute_pooling_errors()
             return
@@ -65,13 +72,9 @@ class ConvolutionalLayer():
                 loss_grad = self.next_layer.errors[i*self.next_layer.nkernel + j] \
                                   * self.next_layer.act_derivatives[i*self.next_layer.nkernel + j]
 
-                # Preparing flipped kernel for full convolution
-                if len(flipped_kernel.shape) != len(loss_grad.shape) :
-                    flipped_kernel = to.add_axis(flipped_kernel, len(flipped_kernel.shape) != len(loss_grad.shape))
-
                 # Managing stride
                 if self.next_layer.stride != 1 :
-                    to.dilate(loss_grad, self.next_layer.stride - 1)
+                    loss_grad = to.dilate(loss_grad, self.next_layer.stride - 1)
 
                 self.errors[i] += to.full_convolution(loss_grad, flipped_kernel)
 
@@ -83,14 +86,9 @@ class ConvolutionalLayer():
                 loss_grad = self.errors[j*self.nkernel + i] \
                             * self.act_derivatives[j*self.nkernel + i]
 
-                # Preparing loss gradients for convolution
-                if len(loss_grad.shape) != len(self.prev_layer.last_outputs[j].shape):
-                    loss_grad = to.add_axis(loss_grad,
-                                    len(self.prev_layer.last_outputs[j].shape) - len(loss_grad.shape))
-
                 # Managing stride
                 if self.stride != 1:
-                    to.dilate(loss_grad, self.stride - 1)
+                    loss_grad = to.dilate(loss_grad, self.stride - 1)
 
                 kernel_update += to.convolution(self.prev_layer.last_outputs[j], loss_grad)
 
