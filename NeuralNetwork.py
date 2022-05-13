@@ -49,6 +49,7 @@ class NeuralNetwork:
         # Computing output layer errors
         out_layer = self.layers[self.depth - 1]
         out_layer.errors = exp_outputs - out_layer.last_outputs
+        if isinstance(out_layer, LSTMOutputLayer) : out_layer.dense_layer.errors = out_layer.errors
 
         # Computing hidden layers errors
         for i in range(self.depth-2, 0, -1) :
@@ -97,9 +98,15 @@ class NeuralNetwork:
         if isinstance(prev_layer, LSTMInputLayer) :
             for unit, layer in zip(lstm_layer.units, prev_layer.layers) :
                 unit.input_layer.prev_layer = layer
+                layer.next_layer = unit.input_layer
         elif isinstance(prev_layer, LSTMLayer) :
-            for prev_unit, curr_unit in zip(prev_layer.units, lstm_layer.units):
-                curr_unit.input_layer.prev_layer = prev_unit.hidden_layer
+            if isinstance(lstm_layer, LSTMOutputLayer) :
+                for unit in prev_layer.units :
+                    unit.hidden_layer.next_layers.append(lstm_layer.dense_layer)
+            else:
+                for prev_unit, curr_unit in zip(prev_layer.units, lstm_layer.units):
+                    curr_unit.input_layer.prev_layer = prev_unit.hidden_layer
+                    prev_unit.hidden_layer.next_layers.append(curr_unit.input_layer)
 
         prev_layer.next_layer = lstm_layer
         self.add_layer(lstm_layer)

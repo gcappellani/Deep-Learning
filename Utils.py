@@ -3,6 +3,18 @@ import numpy as np
 from PIL import Image
 from sklearn.preprocessing import OneHotEncoder
 
+def one_hot_encode(arr, max):
+    res = np.zeros((len(arr),max+1))
+    for i in range(len(arr)) :
+        res[i][arr[i]] = 1.
+    return res
+
+def max_hot_encode(arr, n):
+    res = np.zeros((len(arr), n))
+    for i in range(len(arr)) :
+        max_index = np.argmax(arr[i])
+        res[i][max_index] = 1.
+    return res
 
 class Face:
     def __init__(self, filename, height, width, flat_data, data,

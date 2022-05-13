@@ -14,6 +14,7 @@ class LSTMCell:
         self.forget_layer = DenseLayer(inputsize, sigmoid, bias=bias, prev_layer=self.gates_layer)
         self.select_layer = DenseLayer(inputsize, tanh, bias=bias, prev_layer=self.gates_layer)
 
+        self.state = np.zeros(inputsize)
         self.state_layer = DenseLayer(inputsize, tanh, weights=None)
         self.hidden_layer = DenseLayer(inputsize, identity_function, weights=None)
 
@@ -28,12 +29,12 @@ class LSTMCell:
                                         self.prev_hidden_layer.last_outputs)
         gates_outputs = self.gates_layer.last_outputs
 
-        self.prev_state_layer.compute_output()
         self.output_layer.compute_output(gates_outputs)
         self.ignore_layer.compute_output(gates_outputs)
         self.forget_layer.compute_output(gates_outputs)
         self.select_layer.compute_output(gates_outputs)
 
+        self.prev_state_layer.compute_output(self.state)
         self.state = self.ignore_layer.last_outputs * self.select_layer.last_outputs + \
                      self.forget_layer.last_outputs * self.prev_state_layer.last_outputs
         self.state_layer.compute_output(self.state)
@@ -106,17 +107,21 @@ class LSTMLayer:
             self.units[u].prev_state_layer.prev_layer = self.units[u-1].state_layer
             self.units[u].prev_hidden_layer.prev_layer = self.units[u-1].hidden_layer
 
+        for u in range(nunits-1):
+            self.units[u].state_layer.next_layers.append(self.units[u+1].prev_state_layer)
+            self.units[u].hidden_layer.next_layers.append(self.units[u+1].prev_hidden_layer)
+
 
     def compute_output(self):
         for unit in self.units : unit.compute_output()
 
 
     def compute_errors(self):
-        for u in range(self.nunits - 1, 0, -1) : self.units[u].compute_errors()
+        for u in range(self.nunits-1, -1, -1) : self.units[u].compute_errors()
 
 
     def update_weights(self, alfa, beta, gamma):
-        for u in range(self.nunits - 1, 0, -1): self.units[u].update_weights(alfa, beta, gamma)
+        for u in range(self.nunits-1, -1, -1) : self.units[u].update_weights(alfa, beta, gamma)
 
 
 class LSTMOutputLayer:
@@ -128,9 +133,11 @@ class LSTMOutputLayer:
         self.inputsize = prev_lstm_layer.unit_outputsize * prev_lstm_layer.nunits
         self.outputsize = self.inputsize if outputsize is None else outputsize
         self.dense_layer = DenseLayer(self.inputsize, activation,
-                                      outputsize, weights, randrange, bias, next_layers)
+                                      outputsize, weights, randrange, bias)
+        self.dense_layer.next_layers = self.next_layers
 
         self.ewma = self.dense_layer.ewma
+        self.weights = self.dense_layer.weights
         self.errors = self.dense_layer.errors
         self.last_outputs = self.dense_layer.last_outputs
         self.act_derivatives = self.dense_layer.act_derivatives
@@ -143,11 +150,15 @@ class LSTMOutputLayer:
                 inputs = np.append(inputs, unit.hidden_layer.last_outputs)
 
         self.dense_layer.compute_output(inputs)
+        self.last_outputs = self.dense_layer.last_outputs
+        self.act_derivatives = self.dense_layer.act_derivatives
+
         return self.last_outputs
 
 
     def compute_errors(self):
         self.dense_layer.compute_errors()
+        self.errors = self.dense_layer.errors
 
 
     def update_weights(self, alfa, beta, gamma):
@@ -165,3 +176,4 @@ class LSTMOutputLayer:
                     self.dense_layer.ewma[j][abs_k + rel_k] = gamma * weight_update + (1 - gamma) * \
                                                               self.dense_layer.ewma[j][abs_k + rel_k]
             abs_k += prev_layer.outputsize
+        self.weights = self.dense_layer.weights
